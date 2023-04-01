@@ -1,0 +1,190 @@
+Answer to exercise 1:
+First:
+-> we are in real mode now (no virtual address) and pa are on 20 bits 
+ 
+Physical addresses are currently computed with cs::ip == ($cs <<4)+$ip
+The few following instructions are:
+
+1)[f000:fff0]    0xffff0:	ljmp   $0xf000,$0xe05b
+-> currently at address 0xffff0 with $cs= 0xf000 & $ip = 0xfff0 
+CPU starts in the ROM BIOS (near the very top) and jumps back in the same memory region
+
+2)[f000:e05b]    0xfe05b:	cmpl   $0x0,%cs:0x6574
+-> currently at address  0xfe05b with  $cs= 0xf000 & $ip= 0xe05b  
+Compares 0 with the the content of the physical address 0xfe05b 
+
+3)[f000:e062]    0xfe062:	jne    0xfd2b6
+-> currently at address  0xfe062 with  $cs= 0xf000 & $ip= 0xe062 
+If the previous comparison is false ( done by checking the ZF register) jumps to the address 0xfd2b6
+(Potentially an error handler or an infinite loop)
+
+4)[f000:e066]    0xfe066:	xor    %ax,%ax
+-> currently at address  0xfe066 with  $cs= 0xf000 & $ip= 0xe066 (we didn't jump after all)
+Puts 0 in the accumulator register by applying the xor with itself 
+
+5)[f000:e068]    0xfe068:	mov    %ax,%ss
+-> currently at address  0xfe068 with  $cs= 0xf000 & $ip= 0xe0668 
+We initialise the %ss register with 0 
+
+6)[f000:e06a]    0xfe06a:	mov    $0x7000,%esp
+-> currently at address  0xfe06a with  $cs= 0xf000 & $ip= 0xe06a 
+Initializes the extended stack pointer register with the starting address
+
+7)[f000:e070]    0xfe070:	mov    $0xf3c24,%edx
+ -> currently at address  0xfe070 with  $cs= 0xf000 & $ip= 0xe070 
+Initializes the extended data register with 0xf3c24
+
+8)[f000:e076]    0xfe076:	jmp    0xfd124
+ -> currently at address  0xfe076 with  $cs= 0xf000 & $ip= 0xe076
+Executes a jump to the address 0xfd124
+
+9)[f000:d124]    0xfd124:	mov    %eax,%ecx
+-> currently at address  0xfd124 with  $cs= 0xf000 & $ip= 0xd124
+Loads the content of the (extended) accumulator register into the (extended) counter register
+
+10)[f000:d127]    0xfd127:	cli 
+-> currently at address  0xfd127 with  $cs= 0xf000 & $ip= 0xd127
+Clears interrupt flag == disables interrupts 
+
+11)[f000:d128]    0xfd128:	cld 
+-> currently at address  0xfd128 with  $cs= 0xf000 & $ip= 0xd128
+Clear direction flag, the string operations increments the index registers 
+
+12)[f000:d129]    0xfd129:	mov    $0x8f,%eax
+-> currently at address  0xfd129 with  $cs= 0xf000 & $ip= 0xd129
+Loads 0x8f into the (extended) accumulator register
+
+[f000:d12f]    0xfd12f:	out    %al,$0x70
+
+[f000:d131]    0xfd131:	in     $0x71,%al
+
+[f000:d133]    0xfd133:	in     $0x92,%al
+
+[f000:d135]    0xfd135:	or     $0x2,%al
+
+[f000:d137]    0xfd137:	out    %al,$0x92
+
+[f000:d139]    0xfd139:	lidtw  %cs:0x6690
+[f000:d13f]    0xfd13f:	lgdtw  %cs:0x6650
+-> Loads the global interrupt/description table located at cs::offset
+
+-----------------------------------------------------------------------------------------------------
+Answer to exercise 3
+
+the assembly instructions of read sect: 
+=> 0x7cfc:	call   0x7c7c
+-----------------------------------------------------------------------------------------------------
+
+The processor starts executing in 32 bit mode after the following instruction:
+-> ljmp    $PROT_MODE_CSEG, $protcseg
+
+It loads the special value PROT_MODE_CSEG in the register $cs which causes the cpu to switch to 32 bit mode 
+
+-----------------------------------------------------------------------------------------------------
+The last instruction of the boot loader is 
+=> 0x7d80: call *0x10018
+
+-----------------------------------------------------------------------------------------------------
+
+The first instruction of the kernel is ;
+=> 0x 10000C: movw $0x1234, 0x472
+
+-----------------------------------------------------------------------------------------------------
+ The first instruction is in the entry.S file, loaded in memory at 0x100000 with entry point 0x10000C
+-----------------------------------------------------------------------------------------------------
+The boot loader decides how many sectors is must read by using the information available at the ELF headers which allows us to extract the physical address and the offset from the program headers.
+-----------------------------------------------------------------------------------------------------Answer to exercice 5 :
+
+After changing the linking address to 0x70000, the first instruction that fails is the ljump:
+  ljmp    $PROT_MODE_CSEG, $protcseg
+The confusion comes from the fact that the boot loader has a linking address of 0x7C00 but executes at 0x70000, which causes the jumps to be wrongly computed, this results in an infinite loop that causes the cpu to execute the boot loader from cli, cld .... and keep loping 
+
+-----------------------------------------------------------------------------------------------------Answer to exercice 6:
+
+----------------entering BIOS (very start)----------------------
+   0x100000:	add    %al,(%bx,%si)
+   0x100002:	add    %al,(%bx,%si)
+   0x100004:	add    %al,(%bx,%si)
+   0x100006:	add    %al,(%bx,%si)
+   0x100008:	add    %al,(%bx,%si)
+   0x10000a:	add    %al,(%bx,%si)
+   0x10000c:	add    %al,(%bx,%si)
+   0x10000e:	add    %al,(%bx,%si)
+-----------------entering boot loader at address 0x00007C00-----
+   0x100000:	add    %al,(%bx,%si)
+   0x100002:	add    %al,(%bx,%si)
+   0x100004:	add    %al,(%bx,%si)
+   0x100006:	add    %al,(%bx,%si)
+   0x100008:	add    %al,(%bx,%si)
+   0x10000a:	add    %al,(%bx,%si)
+   0x10000c:	add    %al,(%bx,%si)
+   0x10000e:	add    %al,(%bx,%si)
+COMMENT: no change
+-------------------entering kernel entry address 0x10000C------------
+   0x100000:	add    0x1bad(%eax),%dh
+   0x100006:	add    %al,(%eax)
+   0x100008:	decb   0x52(%edi)
+   0x10000b:	in     $0x66,%al
+   0x10000d:	movl   $0xb81234,0x472
+   0x100017:	add    %dl,(%ecx)
+   0x100019:	add    %cl,(%edi)
+   0x10001b:	and    %al,%bl
+COMMENT: the memory changed, the kernel was loaded in that section of memory -0x10000C- with a starting point of 0x10000c 
+
+-----------------------------------------------------------------------------------------------------Answer to exercice 7:
+
+=> 0x100025:	mov    %eax,%cr0
+
+(gdb) x/8 0x00100000
+   0x100000:	add    0x1bad(%eax),%dh
+   0x100006:	add    %al,(%eax)
+   0x100008:	decb   0x52(%edi)
+   0x10000b:	in     $0x66,%al
+   0x10000d:	movl   $0xb81234,0x472
+   0x100017:	add    %dl,(%ecx)
+   0x100019:	add    %cl,(%edi)
+   0x10001b:	and    %al,%bl
+
+(gdb) x/8 0xf0100000
+   0xf0100000 <_start+4026531828>:	add    %al,(%eax)
+   0xf0100002 <_start+4026531830>:	add    %al,(%eax)
+   0xf0100004 <_start+4026531832>:	add    %al,(%eax)
+   0xf0100006 <_start+4026531834>:	add    %al,(%eax)
+   0xf0100008 <_start+4026531836>:	add    %al,(%eax)
+   0xf010000a <_start+4026531838>:	add    %al,(%eax)
+   0xf010000c <entry>:	add    %al,(%eax)
+   0xf010000e <entry+2>:	add    %al,(%eax)
+
+(gdb) si
+
+(gdb) x/8 0x00100000
+   0x100000:	add    0x1bad(%eax),%dh
+   0x100006:	add    %al,(%eax)
+   0x100008:	decb   0x52(%edi)
+   0x10000b:	in     $0x66,%al
+   0x10000d:	movl   $0xb81234,0x472
+   0x100017:	add    %dl,(%ecx)
+   0x100019:	add    %cl,(%edi)
+
+   0x10001b:(gdb) x/8 0xf0100000
+   0xf0100000 <_start+4026531828>:	add    0x1bad(%eax),%dh
+   0xf0100006 <_start+4026531834>:	add    %al,(%eax)
+   0xf0100008 <_start+4026531836>:	decb   0x52(%edi)
+   0xf010000b <_start+4026531839>:	in     $0x66,%al
+   0xf010000d <entry+1>:	movl   $0xb81234,0x472
+   0xf0100017 <entry+11>:	add    %dl,(%ecx)
+   0xf0100019 <entry+13>:	add    %cl,(%edi)
+   0xf010001b <entry+15>:	and    %al,%bl	and    %al,%bl
+
+Comment: After executing mov %eax,%cr0, (partial) paging is enabled and 0xf0100000 (va) starts translating to 0x00100000 (pa)
+
+-----------------------------------------------------------------------------------------------------Answer to exercice 9:
+
+The kernel initializes it's stack with the following instruction:
+-->   movl	$(bootstacktop),%esp 
+
+The virtual address of the stack pointer is $0xf0110000 which translates to physical address $0x00110000
+-----------------------------------------------------------------------------------------------------Answer to exercice 10:
+
+The following are pushed on the stack with this order:
+ebp, eip, 1st argument, 2nd argument, 3rd argument, 4th argument,5th argument.
